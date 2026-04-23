@@ -2,6 +2,8 @@
 
 A Streamlit-based financial analytics dashboard connected to a PostgreSQL database. It provides executive-level KPIs and risk analysis across transactions, clients, products, and branches.
 
+![Dashboard Preview](assets/Dashboard.png)
+
 ---
 
 ## 📋 Table of Contents
@@ -45,11 +47,16 @@ A Streamlit-based financial analytics dashboard connected to a PostgreSQL databa
 ## Project Structure
 
 ```
-finance-dashboard/
-├── app.py          # Main Streamlit application
-├── .env            # Environment variables (not committed)
-├── requirements.txt
-└── README.md
+DASH/
+├── assets/
+│   └── Dashboard.png       # Dashboard preview image
+├── src/
+│   └── main.py             # Main Streamlit application
+├── venv/                   # Virtual environment (not committed)
+├── .env                    # Environment variables (not committed)
+├── .gitignore
+├── README.md
+└── requirements.txt
 ```
 
 ---
@@ -73,8 +80,8 @@ The app reads from five tables and joins them into a single flat DataFrame:
 **1. Clone the repository**
 
 ```bash
-git clone https://github.com/your-org/finance-dashboard.git
-cd finance-dashboard
+git clone https://github.com/your-org/DASH.git
+cd DASH
 ```
 
 **2. Create and activate a virtual environment**
@@ -123,7 +130,7 @@ DB_NAME=your_db_name
 ## Running the App
 
 ```bash
-streamlit run app.py
+streamlit run src/main.py
 ```
 
 The app will be available at `http://localhost:8501` by default.
