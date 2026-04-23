@@ -1,122 +1,170 @@
-# 🏦 FinanceCore Banking Dashboard
+# 💰 Finance Dashboard
 
-> Interactive banking analytics dashboard built with **Streamlit** and **PostgreSQL**.  
-> Two pages: executive overview and risk analysis, with global sidebar filters.
+A Streamlit-based financial analytics dashboard connected to a PostgreSQL database. It provides executive-level KPIs and risk analysis across transactions, clients, products, and branches.
 
 ---
 
-## ⚙️ Prerequisites
+## 📋 Table of Contents
 
-- Python 3.9+
-- PostgreSQL (local or remote)
-- pip
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Database Schema](#database-schema)
+- [Setup & Installation](#setup--installation)
+- [Environment Variables](#environment-variables)
+- [Running the App](#running-the-app)
+- [Pages](#pages)
+- [Filters](#filters)
 
-```bash
-pip install streamlit pandas seaborn matplotlib sqlalchemy python-dotenv
+---
+
+## Features
+
+- **Executive Overview** — KPI cards for total credit, debit, net balance, and unique client count
+- **Monthly Trend Chart** — Line chart comparing credit vs. debit over time
+- **Branch Performance** — Bar chart of credit volume per agency
+- **Product Breakdown** — Bar chart of revenue by product
+- **Client Segmentation** — Pie chart showing distribution across client segments
+- **Risk Analysis** — Correlation heatmap, credit score scatter plot, and a top-10 risky clients table
+- **CSV Export** — Download the filtered dataset at any time
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | [Streamlit](https://streamlit.io/) |
+| Charts | [Plotly Express](https://plotly.com/python/plotly-express/) |
+| Data | [Pandas](https://pandas.pydata.org/) |
+| Database | PostgreSQL via [SQLAlchemy](https://www.sqlalchemy.org/) |
+| Config | [python-dotenv](https://pypi.org/project/python-dotenv/) |
+
+---
+
+## Project Structure
+
+```
+finance-dashboard/
+├── app.py          # Main Streamlit application
+├── .env            # Environment variables (not committed)
+├── requirements.txt
+└── README.md
 ```
 
 ---
 
-## 🔧 Setup
+## Database Schema
 
-### 1. Environment Variables
-
-Create a `.env` file at the project root:
-
-```env
-DB_USER=your_username
-DB_PASS=your_password
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=financecore
-```
-
-### 2. Database Schema
-
-The app expects these tables in PostgreSQL:
+The app reads from five tables and joins them into a single flat DataFrame:
 
 | Table | Key Columns |
 |-------|-------------|
-| `transactions` | transaction_id, client_id, produit_id, agence_id, montant, date_transaction, type_operation |
-| `client` | client_id, segment_id, score_credit_client |
-| `segment` | segment_id, segment_client |
-| `produit` | produit_id, produit |
-| `agence` | agence_id, agence |
+| `transactions` | `client_id`, `produit_id`, `agence_id`, `montant`, `type_operation`, `date_transaction`, `taux_change_eur` |
+| `client` | `client_id`, `segment_id`, `score_credit_client` |
+| `segment` | `segment_id`, `segment_client` |
+| `produit` | `produit_id`, `produit` |
+| `agence` | `agence_id`, `agence` |
 
-### 3. Run
+---
+
+## Setup & Installation
+
+**1. Clone the repository**
 
 ```bash
-streamlit run src/main.py
+git clone https://github.com/your-org/finance-dashboard.git
+cd finance-dashboard
 ```
 
-Opens at **http://localhost:8501**
+**2. Create and activate a virtual environment**
 
----
+```bash
+python -m venv venv
+source venv/bin/activate      # macOS/Linux
+venv\Scripts\activate         # Windows
+```
 
-## 📊 Pages
+**3. Install dependencies**
 
-### Vue Exécutive
+```bash
+pip install -r requirements.txt
+```
 
-| KPI | Description |
-|-----|-------------|
-| 💳 Volume Transactions | Total transaction count |
-| 💰 CA Total | Total revenue in MAD |
-| 👤 Clients Actifs | Unique active clients |
-| 📈 Marge Moyenne | Estimated margin (10% of mean transaction) |
-
-Charts: Débits vs Crédits (line), CA par Agence (bar), CA par Produit (bar), Répartition Clients (pie)
-
-### Analyse des Risques
-
-- **Heatmap Corrélation** — score_credit_client × montant × taux_change_eur
-- **Scatter Plot** — Credit score vs amount, colored by segment
-- **Top 10 Clients à Risque** — lowest credit scores, color-coded (🔴 <40 / 🟠 <60 / 🟢 ≥60)
-
----
-
-## 🔎 Sidebar Filters
-
-All filters apply globally across both pages:
-
-- **Agence** — multi-select branch filter
-- **Segment Client** — multi-select segment filter
-- **Produit** — multi-select product filter
-- **Période** — year range slider
-
----
-
-## 📥 Export
-
-A **CSV download button** is available at the bottom of every page.  
-File: `financecore_filtered_data.csv` (UTF-8 encoded, filtered data only)
-
----
-
-## 🗂 Project Structure
+**`requirements.txt` should include:**
 
 ```
-Dashboard-Analytics/
-├── .vscode/
-│   └── settings.json       # VS Code workspace settings
-├── assets/                 # Static assets
-├── src/
-│   └── main.py             # Main Streamlit application
-├── venv/                   # Python virtual environment (not committed)
-├── .env                    # Database credentials (not committed)
-├── .gitignore
-├── pyenv.cfg               # Python version config
-└── requirements.txt        # Python dependencies
+streamlit
+pandas
+plotly
+sqlalchemy
+psycopg2-binary
+python-dotenv
 ```
 
 ---
 
-## 📝 Notes
+## Environment Variables
 
-- Data is cached via `@st.cache_data` — restart the app to refresh after DB changes
-- `Marge Moyenne` is an estimate (10% of mean amount), not actual margin data
-- `taux_change_eur` column must exist for the risk heatmap to render correctly
-- All monetary values are displayed in **MAD** (Moroccan Dirham)
+Create a `.env` file at the project root with the following keys:
+
+```env
+DB_USER=your_db_user
+DB_PASS=your_db_password
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=your_db_name
+```
+
+> **Never commit your `.env` file.** Add it to `.gitignore`.
 
 ---
 
-*FinanceCore Banking Dashboard — Internal Documentation*
+## Running the App
+
+```bash
+streamlit run app.py
+```
+
+The app will be available at `http://localhost:8501` by default.
+
+---
+
+## Pages
+
+### 📊 Executive
+
+An overview of financial performance with four KPI metrics at the top:
+
+- **Credit** — Total incoming transaction volume
+- **Debit** — Total outgoing transaction volume
+- **Net** — Credit minus Debit
+- **Clients** — Number of unique clients in the filtered dataset
+
+Followed by four charts:
+
+1. Monthly credit vs. debit line chart
+2. Client segment distribution pie chart
+3. Credit volume by branch (bar chart)
+4. Credit volume by product (bar chart)
+
+### ⚠️ Risks
+
+A deeper look at financial risk:
+
+1. **Correlation Heatmap** — Relationships between `score_credit_client`, `montant`, and `taux_change_eur`
+2. **Scatter Plot** — Credit score vs. transaction amount, colored by segment
+3. **Top 10 Risky Clients** — Clients with the lowest average credit scores
+
+---
+
+## Filters
+
+All charts and metrics respond to the sidebar filters in real time:
+
+| Filter | Type | Description |
+|--------|------|-------------|
+| **Agence** | Multi-select | Filter by one or more branches |
+| **Segment** | Multi-select | Filter by client segment |
+| **Produit** | Multi-select | Filter by product type |
+| **Year** | Range slider | Restrict to a specific year range |

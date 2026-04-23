@@ -1,62 +1,45 @@
 import os
 import streamlit as st
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
+import plotly.express as px
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 
-# ======================================
-# CONFIG PAGE
-# ======================================
-st.set_page_config(
-    page_title="FinanceCore Dashboard",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# ---------------- CONFIG ----------------
+st.set_page_config(page_title="Finance Dashboard", layout="wide")
+st.title("💰 Finance Dashboard")
 
-st.title("🏦 FinanceCore Banking Dashboard")
+COLOR_MAP = {"credit": "#00CC96", "debit": "#EF553B"}
 
-# ======================================
-# DATABASE CONNECTION
-# ======================================
-load_dotenv()
+# ---------------- DATABASE ----------------
+@st.cache_resource
+def get_engine():
+    load_dotenv()
+    return create_engine(
+        f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@"
+        f"{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+    )
 
-try:
-    DB_USER = os.getenv("DB_USER")
-    DB_PASS = os.getenv("DB_PASS")
-    DB_HOST = os.getenv("DB_HOST")
-    DB_PORT = os.getenv("DB_PORT")
-    DB_NAME = os.getenv("DB_NAME")
+engine = get_engine()
 
-    db_url = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-    engine = create_engine(db_url)
-
-    st.success("✅ Database Connected Successfully")
-
-except Exception as e:
-    st.error(f"❌ Connection Error: {e}")
-    st.stop()
-
-# ======================================
-# LOAD DATA
-# ======================================
+# ---------------- DATA ----------------
 @st.cache_data
 def load_data():
+    tables = ["segment", "client", "produit", "agence", "transactions"]
+    data = {}
+
     with engine.connect() as con:
-        segment = pd.read_sql(text("SELECT * FROM segment"), con)
-        client = pd.read_sql(text("SELECT * FROM client"), con)
-        produit = pd.read_sql(text("SELECT * FROM produit"), con)
-        agence = pd.read_sql(text("SELECT * FROM agence"), con)
-        transactions = pd.read_sql(text("SELECT * FROM transactions"), con)
+        for t in tables:
+            data[t] = pd.read_sql(text(f"SELECT * FROM {t}"), con)
 
-    df = transactions.merge(client, on="client_id", how="left")
-    df = df.merge(segment, on="segment_id", how="left")
-    df = df.merge(produit, on="produit_id", how="left")
-    df = df.merge(agence, on="agence_id", how="left")
+    df = data["transactions"] \
+        .merge(data["client"], on="client_id") \
+        .merge(data["segment"], on="segment_id") \
+        .merge(data["produit"], on="produit_id") \
+        .merge(data["agence"], on="agence_id")
 
-    df["date_transaction"] = pd.to_datetime(df["date_transaction"], errors="coerce")
+    df["date_transaction"] = pd.to_datetime(df["date_transaction"])
+    df["type_operation"] = df["type_operation"].str.lower().str.strip()
     df["mois"] = df["date_transaction"].dt.to_period("M").astype(str)
     df["annee"] = df["date_transaction"].dt.year
 
@@ -64,169 +47,133 @@ def load_data():
 
 df = load_data()
 
-# ======================================
-# SIDEBAR NAVIGATION
-# ======================================
-page = st.sidebar.radio(
-    "📂 Navigation",
-    ["📊 Vue Exécutive", "⚠️ Analyse des Risques"]
-)
+# ---------------- SIDEBAR ----------------
+page = st.sidebar.radio("Navigation", ["Executive", "Risks"])
 
-# ======================================
-# FILTERS
-# ======================================
-st.sidebar.header("🔎 Filtres")
+def apply_filters(df):
+    agence = st.sidebar.multiselect("Agence", df["agence"].unique(), df["agence"].unique())
+    segment = st.sidebar.multiselect("Segment", df["segment_client"].unique(), df["segment_client"].unique())
+    produit = st.sidebar.multiselect("Produit", df["produit"].unique(), df["produit"].unique())
 
-agence_filter = st.sidebar.multiselect(
-    "Agence",
-    df["agence"].dropna().unique(),
-    default=df["agence"].dropna().unique()
-)
+    years = st.sidebar.slider(
+        "Year",
+        int(df["annee"].min()),
+        int(df["annee"].max()),
+        (int(df["annee"].min()), int(df["annee"].max()))
+    )
 
-segment_filter = st.sidebar.multiselect(
-    "Segment Client",
-    df["segment_client"].dropna().unique(),
-    default=df["segment_client"].dropna().unique()
-)
+    return df[
+        df["agence"].isin(agence) &
+        df["segment_client"].isin(segment) &
+        df["produit"].isin(produit) &
+        df["annee"].between(*years)
+    ]
 
-produit_filter = st.sidebar.multiselect(
-    "Produit",
-    df["produit"].dropna().unique(),
-    default=df["produit"].dropna().unique()
-)
+df_filtered = apply_filters(df)
 
-year_filter = st.sidebar.slider(
-    "Période",
-    int(df["annee"].min()),
-    int(df["annee"].max()),
-    (int(df["annee"].min()), int(df["annee"].max()))
-)
+# ---------------- EXECUTIVE ----------------
+if page == "Executive":
 
-# ======================================
-# APPLY FILTERS
-# ======================================
-df_filtered = df[
-    (df["agence"].isin(agence_filter)) &
-    (df["segment_client"].isin(segment_filter)) &
-    (df["produit"].isin(produit_filter)) &
-    (df["annee"].between(year_filter[0], year_filter[1]))
-]
+    st.subheader("📊 Executive Overview")
 
-# ======================================================
-# PAGE 1 : VUE EXECUTIVE
-# ======================================================
-if page == "📊 Vue Exécutive":
-
-    st.header("📊 Vue Exécutive")
-
-    volume_transactions = df_filtered["transaction_id"].count()
-    ca_total = df_filtered["montant"].sum()
-    clients_actifs = df_filtered["client_id"].nunique()
-    marge_moyenne = df_filtered["montant"].mean() * 0.1
+    credit = df_filtered.query("type_operation=='credit'")["montant"].sum()
+    debit = df_filtered.query("type_operation=='debit'")["montant"].sum()
 
     col1, col2, col3, col4 = st.columns(4)
 
-    col1.metric("💳 Volume Transactions", f"{volume_transactions:,}")
-    col2.metric("💰 CA Total", f"{ca_total:,.2f} MAD")
-    col3.metric("👤 Clients Actifs", f"{clients_actifs}")
-    col4.metric("📈 Marge Moyenne", f"{marge_moyenne:,.2f} MAD")
+    col1.metric("Credit", f"{credit:,.0f} MAD")
+    col2.metric("Debit", f"{debit:,.0f} MAD")
+    col3.metric("Net", f"{credit - debit:,.0f} MAD")
+    col4.metric("Clients", df_filtered["client_id"].nunique())
 
     st.divider()
 
+    # -------- DATA --------
     df_line = df_filtered.groupby(["mois", "type_operation"])["montant"].sum().reset_index()
-    df_agence = df_filtered.groupby("agence")["montant"].sum().reset_index()
-    df_produit = df_filtered.groupby("produit")["montant"].sum().reset_index()
-    df_segment = df_filtered["segment_client"].value_counts()
+    df_agence = df_filtered.query("type_operation=='credit'").groupby("agence")["montant"].sum().reset_index()
+    df_produit = df_filtered.query("type_operation=='credit'").groupby("produit")["montant"].sum().reset_index()
+    df_segment = df_filtered["segment_client"].value_counts().reset_index()
+    df_segment.columns = ["segment", "count"]
 
-    col5, col6 = st.columns(2)
+    # -------- CHARTS --------
+    col1, col2 = st.columns([2, 1])
 
-    with col5:
-        st.subheader("📈 Débits vs Crédits")
-        fig, ax = plt.subplots(figsize=(8,4))
-        sns.lineplot(data=df_line, x="mois", y="montant", hue="type_operation", marker="o", ax=ax)
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
+    with col1:
+        fig = px.line(
+            df_line,
+            x="mois",
+            y="montant",
+            color="type_operation",
+            color_discrete_map=COLOR_MAP,
+            markers=True
+        )
+        fig.update_layout(template="plotly_dark", height=400)
+        st.plotly_chart(fig, use_container_width=True)
 
-    with col6:
-        st.subheader("🏦 CA par Agence")
-        fig, ax = plt.subplots(figsize=(8,4))
-        sns.barplot(data=df_agence, x="agence", y="montant", ax=ax)
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
+    with col2:
+        fig = px.pie(df_segment, names="segment", values="count")
+        fig.update_layout(template="plotly_dark", height=400)
+        st.plotly_chart(fig, use_container_width=True)
 
-    col7, col8 = st.columns(2)
+    col3, col4 = st.columns(2)
 
-    with col7:
-        st.subheader("💳 CA par Produit")
-        fig, ax = plt.subplots(figsize=(8,4))
-        sns.barplot(data=df_produit, x="produit", y="montant", ax=ax)
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
+    with col3:
+        fig = px.bar(
+            df_agence,
+            x="agence",
+            y="montant",
+            color="montant",
+            color_continuous_scale="Greens"
+        )
+        fig.update_layout(template="plotly_dark", height=350)
+        st.plotly_chart(fig, use_container_width=True)
 
-    with col8:
-        st.subheader("👥 Répartition Clients")
-        fig, ax = plt.subplots(figsize=(6,6))
-        ax.pie(df_segment, labels=df_segment.index, autopct="%1.1f%%")
-        st.pyplot(fig)
+    with col4:
+        fig = px.bar(
+            df_produit,
+            x="produit",
+            y="montant",
+            color="produit"
+        )
+        fig.update_layout(template="plotly_dark", height=350)
+        st.plotly_chart(fig, use_container_width=True)
 
-# ======================================================
-# PAGE 2 : ANALYSE DES RISQUES
-# ======================================================
-elif page == "⚠️ Analyse des Risques":
-
-    st.header("⚠️ Analyse des Risques")
+# ---------------- RISKS ----------------
+else:
+    st.subheader("⚠️ Risk Analysis")
 
     col1, col2 = st.columns(2)
 
-    with col1:
-        st.subheader("🔥 Heatmap Corrélation")
-        corr = df_filtered[["score_credit_client", "montant", "taux_change_eur"]].corr()
+    corr = df_filtered[["score_credit_client", "montant", "taux_change_eur"]].corr()
 
-        fig, ax = plt.subplots(figsize=(7,4))
-        sns.heatmap(corr, annot=True, cmap="Reds", ax=ax)
-        st.pyplot(fig)
+    with col1:
+        fig = px.imshow(corr, text_auto=True, color_continuous_scale="RdBu")
+        fig.update_layout(template="plotly_dark", height=400)
+        st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        st.subheader("📍 Score Crédit vs Montant")
-        fig, ax = plt.subplots(figsize=(7,4))
-        sns.scatterplot(
-            data=df_filtered,
+        fig = px.scatter(
+            df_filtered,
             x="score_credit_client",
             y="montant",
-            hue="segment_client",
-            ax=ax
+            color="segment_client"
         )
-        st.pyplot(fig)
+        fig.update_layout(template="plotly_dark", height=400)
+        st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("🚨 Top 10 Clients à Risque")
+    st.subheader("Top 10 Risky Clients")
 
-    risk_clients = df_filtered.groupby("client_id").agg({
+    risk = df_filtered.groupby("client_id").agg({
         "score_credit_client": "mean",
         "montant": "sum"
-    }).reset_index()
+    }).sort_values("score_credit_client").head(10)
 
-    risk_clients = risk_clients.sort_values("score_credit_client").head(10)
+    st.dataframe(risk, use_container_width=True)
 
-    def color_risk(val):
-        if val < 40:
-            return "background-color: red"
-        elif val < 60:
-            return "background-color: orange"
-        else:
-            return "background-color: lightgreen"
-
-    styled_df = risk_clients.style.map(color_risk, subset=["score_credit_client"])
-
-    st.dataframe(styled_df)
-
-# ======================================
-# EXPORT CSV
-# ======================================
-st.divider()
-
+# ---------------- DOWNLOAD ----------------
 st.download_button(
-    label="Télécharger les données filtrées",
-    data=df_filtered.to_csv(index=False).encode("utf-8"),
-    file_name="financecore_filtered_data.csv",
-    mime="text/csv"
+    "Download CSV",
+    df_filtered.to_csv(index=False).encode(),
+    "finance.csv",
+    "text/csv"
 )
