@@ -2,8 +2,6 @@
 
 A Streamlit-based financial analytics dashboard connected to a PostgreSQL database. It provides executive-level KPIs and risk analysis across transactions, clients, products, and branches.
 
-![Dashboard Preview](assets/Dashboard.png)
-
 ---
 
 ## 📋 Table of Contents

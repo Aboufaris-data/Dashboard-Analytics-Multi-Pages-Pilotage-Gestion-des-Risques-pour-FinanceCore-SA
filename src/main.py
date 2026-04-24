@@ -6,12 +6,14 @@ from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 
 # ---------------- CONFIG ----------------
+
 st.set_page_config(page_title="Finance Dashboard", layout="wide")
 st.title("💰 Finance Dashboard")
 
 COLOR_MAP = {"credit": "#00CC96", "debit": "#EF553B"}
 
 # ---------------- DATABASE ----------------
+
 @st.cache_resource
 def get_engine():
     load_dotenv()
@@ -23,6 +25,7 @@ def get_engine():
 engine = get_engine()
 
 # ---------------- DATA ----------------
+
 @st.cache_data
 def load_data():
     tables = ["segment", "client", "produit", "agence", "transactions"]
@@ -48,6 +51,7 @@ def load_data():
 df = load_data()
 
 # ---------------- SIDEBAR ----------------
+
 page = st.sidebar.radio("Navigation", ["Executive", "Risks"])
 
 def apply_filters(df):
@@ -72,6 +76,7 @@ def apply_filters(df):
 df_filtered = apply_filters(df)
 
 # ---------------- EXECUTIVE ----------------
+
 if page == "Executive":
 
     st.subheader("📊 Executive Overview")
@@ -89,6 +94,7 @@ if page == "Executive":
     st.divider()
 
     # -------- DATA --------
+
     df_line = df_filtered.groupby(["mois", "type_operation"])["montant"].sum().reset_index()
     df_agence = df_filtered.query("type_operation=='credit'").groupby("agence")["montant"].sum().reset_index()
     df_produit = df_filtered.query("type_operation=='credit'").groupby("produit")["montant"].sum().reset_index()
@@ -96,6 +102,7 @@ if page == "Executive":
     df_segment.columns = ["segment", "count"]
 
     # -------- CHARTS --------
+
     col1, col2 = st.columns([2, 1])
 
     with col1:
@@ -139,6 +146,7 @@ if page == "Executive":
         st.plotly_chart(fig, use_container_width=True)
 
 # ---------------- RISKS ----------------
+
 else:
     st.subheader("⚠️ Risk Analysis")
 
@@ -171,6 +179,7 @@ else:
     st.dataframe(risk, use_container_width=True)
 
 # ---------------- DOWNLOAD ----------------
+
 st.download_button(
     "Download CSV",
     df_filtered.to_csv(index=False).encode(),
